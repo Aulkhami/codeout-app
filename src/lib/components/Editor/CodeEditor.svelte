@@ -1,32 +1,88 @@
 <script lang="ts">
 	import Editor from './Editor.svelte';
 	import LanguageSelector from './LanguageSelector.svelte';
-	import { Play, Loader2 } from 'lucide-svelte';
+	import { analyzeCode, type AIAnalysisResult } from '$lib/services/aiService';
+	import AIFeedback from '$lib/components/ui/AIFeedback.svelte';
+	import { Play, Loader2, Zap, RotateCcw, Send } from 'lucide-svelte';
 
 	interface CodeEditorProps {
 		initialCode?: string;
 		challengeId?: string;
 		lobbyId?: string;
 		onExecute?: (result: any) => void;
+		onSubmit?: (result: any) => void;
 	}
 
 	let { 
 		initialCode = '', 
 		challengeId,
 		lobbyId,
-		onExecute
+		onExecute,
+		onSubmit
 	}: CodeEditorProps = $props();
 
 	let editor: Editor;
 	let code = $state(initialCode);
 	let language = $state('javascript');
 	let isExecuting = $state(false);
+	let isSubmitting = $state(false);
+	let isLoadingTemplate = $state(false);
 	let lastResult = $state<any>(null);
+	let analysis = $state<AIAnalysisResult | null>(null);
+	let isAnalyzing = $state(false);
+	let showAnalysis = $state(false);
+	let activeTab = $state<'output' | 'analysis'>('output');
 
 	async function handleLanguageChange(newLanguage: string) {
+		console.log('CodeEditor: Language changing from', language, 'to', newLanguage);
+		
+		if (language === newLanguage) {
+			console.log('CodeEditor: Same language, skipping change');
+			return;
+		}
+		
+		const previousLanguage = language;
 		language = newLanguage;
-		// Always load template when language changes
-		await editor?.loadTemplate();
+		
+		isLoadingTemplate = true;
+		try {
+			// Update Monaco editor language first
+			if (editor) {
+				await editor.updateLanguage(newLanguage);
+				console.log('CodeEditor: Monaco language updated to', newLanguage);
+			}
+			
+			// Ask user if they want to load template for new language (unless code is empty)
+			const currentCode = editor?.getValue() || '';
+			const isCodeEmpty = !currentCode.trim();
+			
+			if (isCodeEmpty || await shouldLoadTemplate(previousLanguage, newLanguage)) {
+				await loadTemplateForLanguage(newLanguage);
+			}
+			
+			console.log('CodeEditor: Language change completed to', newLanguage);
+		} catch (error) {
+			console.error('CodeEditor: Error during language change:', error);
+		} finally {
+			isLoadingTemplate = false;
+		}
+	}
+
+	async function shouldLoadTemplate(from: string, to: string): Promise<boolean> {
+		// For now, automatically load template. Later we can add user confirmation
+		return true;
+	}
+
+	async function loadTemplateForLanguage(lang: string) {
+		console.log('CodeEditor: Loading template for language:', lang);
+		try {
+			if (editor) {
+				await editor.loadTemplate();
+				console.log('CodeEditor: Template loaded successfully for', lang);
+			}
+		} catch (error) {
+			console.error('CodeEditor: Error loading template for', lang, ':', error);
+		}
 	}
 
 	function handleCodeChange(value: string) {
@@ -34,41 +90,79 @@
 	}
 
 	async function runCode() {
-		if (!challengeId || isExecuting) return;
+		if (!challengeId || isExecuting) {
+			console.error('CodeEditor runCode: Cannot run - challengeId:', challengeId, 'isExecuting:', isExecuting);
+			return;
+		}
+		
+		// Handle demo challenges specially
+		if (challengeId === 'two-sum' || challengeId === 'sample' || challengeId === 'demo') {
+			console.log('CodeEditor: Running demo challenge');
+			lastResult = {
+				success: true,
+				output: 'Demo execution completed!\n\nThis is a demonstration of the code execution feature. To test real challenges with proper test cases, please visit the Challenges page.',
+				testResults: [{
+					id: 1,
+					passed: true,
+					time: '42ms',
+					input: 'Demo input',
+					expected: 'Demo output',
+					actual: 'Demo output',
+					stderr: ''
+				}],
+				executionTime: 42,
+				memory: 1024,
+				passedCount: 1,
+				totalCount: 1
+			};
+			onExecute?.(lastResult);
+			return;
+		}
+		
+		const payload = {
+			language,
+			code,
+			challengeId
+		};
+		
+		console.log('CodeEditor runCode: Sending payload to /api/code/run:', {
+			language: payload.language || 'MISSING',
+			code: payload.code ? `present (${payload.code.length} chars)` : 'MISSING',
+			challengeId: payload.challengeId || 'MISSING'
+		});
 		
 		isExecuting = true;
 		lastResult = null;
 		
 		try {
-			const response = await fetch('/api/code/execute', {
+			const response = await fetch('/api/code/run', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({
-					language,
-					code,
-					challengeId,
-					lobbyId
-				})
+				body: JSON.stringify(payload)
 			});
 			
 			if (response.ok) {
 				const result = await response.json();
 				lastResult = result;
 				onExecute?.(result);
+				// Auto-analyze after successful execution
+				if (result.success) {
+					await analyzeCodeAI();
+				}
 			} else {
 				const error = await response.json();
 				lastResult = {
 					success: false,
-					error: error.error || 'Failed to execute code',
+					error: error.error || 'Failed to run code',
 					output: '',
 					testResults: []
 				};
 				onExecute?.(lastResult);
 			}
 		} catch (error) {
-			console.error('Failed to execute code:', error);
+			console.error('Failed to run code:', error);
 			lastResult = {
 				success: false,
 				error: 'Network error occurred',
@@ -81,9 +175,112 @@
 		}
 	}
 
-	function resetCode() {
-		editor?.loadTemplate();
-		lastResult = null;
+	async function submitCode() {
+		if (!challengeId || isSubmitting) {
+			console.error('CodeEditor submitCode: Cannot submit - challengeId:', challengeId, 'isSubmitting:', isSubmitting);
+			return;
+		}
+		
+		// Handle demo challenges specially
+		if (challengeId === 'two-sum' || challengeId === 'sample' || challengeId === 'demo') {
+			console.log('CodeEditor: Demo submission not supported');
+			lastResult = {
+				success: false,
+				error: 'Demo submissions are not supported. Please visit the Challenges page to submit solutions to real challenges.',
+				testResults: []
+			};
+			onSubmit?.(lastResult);
+			return;
+		}
+		
+		const payload = {
+			language,
+			code,
+			challengeId,
+			lobbyId: lobbyId || undefined
+		};
+		
+		console.log('CodeEditor submitCode: Sending payload to /api/code/submit:', {
+			language: payload.language || 'MISSING',
+			code: payload.code ? `present (${payload.code.length} chars)` : 'MISSING',
+			challengeId: payload.challengeId || 'MISSING',
+			lobbyId: payload.lobbyId || 'not provided'
+		});
+		
+		isSubmitting = true;
+		
+		try {
+			const response = await fetch('/api/code/submit', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(payload)
+			});
+			
+			if (response.ok) {
+				const result = await response.json();
+				lastResult = result;
+				onSubmit?.(result);
+			} else {
+				const error = await response.json();
+				const errorResult = {
+					success: false,
+					submitted: false,
+					error: error.error || 'Failed to submit code',
+					output: '',
+					testResults: []
+				};
+				onSubmit?.(errorResult);
+			}
+		} catch (error) {
+			console.error('Failed to submit code:', error);
+			const errorResult = {
+				success: false,
+				submitted: false,
+				error: 'Network error occurred',
+				output: '',
+				testResults: []
+			};
+			onSubmit?.(errorResult);
+		} finally {
+			isSubmitting = false;
+		}
+	}
+
+	async function resetCode() {
+		console.log('CodeEditor: Resetting code for language:', language);
+		isLoadingTemplate = true;
+		try {
+			if (editor) {
+				await editor.loadTemplate();
+				console.log('CodeEditor: Code reset successfully');
+			}
+			lastResult = null;
+			analysis = null;
+			showAnalysis = false;
+		} catch (error) {
+			console.error('CodeEditor: Error resetting code:', error);
+		} finally {
+			isLoadingTemplate = false;
+		}
+	}
+
+	async function analyzeCodeAI() {
+		if (!code.trim()) return;
+		
+		isAnalyzing = true;
+		showAnalysis = true;
+		activeTab = 'analysis';
+		
+		try {
+			analysis = await analyzeCode(code, language, challengeId);
+		} catch (error) {
+			console.error('Analysis failed:', error);
+			analysis = null;
+		} finally {
+			isAnalyzing = false;
+		}
 	}
 
 	// Public API
@@ -94,6 +291,8 @@
 		editor?.setValue(newCode);
 	}
 	export function getLastResult() { return lastResult; }
+	export function getAnalysis() { return analysis; }
+	export function triggerAnalysis() { return analyzeCodeAI(); }
 </script>
 
 <div class="flex flex-col gap-4 p-4 bg-neutral-900 rounded-lg border border-neutral-700">
@@ -101,21 +300,35 @@
 	<div class="flex items-center justify-between">
 		<LanguageSelector 
 			bind:selected={language} 
-			onChange={handleLanguageChange} 
+			onChange={handleLanguageChange}
+			disabled={isLoadingTemplate}
 		/>
 		
 		<div class="flex gap-2">
 			<button 
 				onclick={resetCode}
-				class="px-3 py-1.5 text-sm border border-neutral-600 bg-neutral-800 text-neutral-200 rounded-md hover:bg-neutral-700 transition-colors"
-				disabled={isExecuting}
+				class="px-3 py-1.5 text-sm border border-neutral-600 bg-neutral-800 text-neutral-200 rounded-md hover:bg-neutral-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+				disabled={isExecuting || isLoadingTemplate}
 			>
-				Reset
+				{#if isLoadingTemplate}
+					<Loader2 class="w-4 h-4 animate-spin" />
+					Loading...
+				{:else}
+					<RotateCcw class="w-4 h-4" />
+					Reset
+				{/if}
+			</button>
+			<button 
+				onclick={analyzeCodeAI}
+				class="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-500 transition-colors"
+				disabled={isAnalyzing || !code.trim()}
+			>
+				{isAnalyzing ? 'Analyzing...' : 'AI Analysis'}
 			</button>
 			<button 
 				onclick={runCode}
 				disabled={!challengeId || isExecuting}
-				class="px-4 py-1.5 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+				class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
 			>
 				{#if isExecuting}
 					<Loader2 class="w-4 h-4 animate-spin" />
@@ -123,6 +336,19 @@
 				{:else}
 					<Play class="w-4 h-4" />
 					Run Tests
+				{/if}
+			</button>
+			<button 
+				onclick={submitCode}
+				disabled={!challengeId || isSubmitting}
+				class="px-4 py-1.5 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{#if isSubmitting}
+					<Loader2 class="w-4 h-4 animate-spin" />
+					Submitting...
+				{:else}
+					<Send class="w-4 h-4" />
+					Submit Code
 				{/if}
 			</button>
 		</div>
@@ -133,6 +359,7 @@
 		bind:this={editor}
 		bind:value={code}
 		{language}
+		{challengeId}
 		height="400px"
 		onchange={handleCodeChange}
 	/>
@@ -192,6 +419,54 @@
 				</div>
 				<div class="text-sm text-rose-300 bg-rose-500/10 p-2 rounded">
 					{lastResult.error}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	{#if showAnalysis && analysis}
+		<div class="bg-green-900/20 border-l-4 border-green-400 p-4 mb-4 rounded">
+			<h3 class="text-green-300 font-semibold mb-2">AI Analysis Results</h3>
+			<div class="grid grid-cols-2 gap-4 mb-3">
+				<div class="bg-blue-900/30 p-3 rounded">
+					<span class="text-blue-300 text-sm">Quality Score</span>
+					<div class="text-xl font-bold text-blue-400">{analysis.score}/100</div>
+				</div>
+				<div class="bg-purple-900/30 p-3 rounded">
+					<span class="text-purple-300 text-sm">Readability</span>
+					<div class="text-xl font-bold text-purple-400">{analysis.codeQuality.readability}/100</div>
+				</div>
+			</div>
+			{#if analysis.suggestions && analysis.suggestions.filter(s => s.type === 'improvement').length > 0}
+				<div class="mb-3">
+					<h4 class="text-green-400 text-sm font-semibold mb-2">Improvements</h4>
+					<ul class="text-green-300 text-sm space-y-1">
+						{#each analysis.suggestions.filter(s => s.type === 'improvement') as suggestion}
+							<li class="flex items-start">
+								<span class="text-green-400 mr-2">•</span>
+								{suggestion.message}
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+			{#if analysis.suggestions && analysis.suggestions.filter(s => s.type === 'error' || s.type === 'warning').length > 0}
+				<div>
+					<h4 class="text-red-400 text-sm font-semibold mb-2">Issues Found</h4>
+					<ul class="text-red-300 text-sm space-y-1">
+						{#each analysis.suggestions.filter(s => s.type === 'error' || s.type === 'warning') as suggestion}
+							<li class="flex items-start">
+								<span class="text-red-400 mr-2">⚠</span>
+								{suggestion.message}
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+			{#if analysis.summary}
+				<div class="mt-3 p-3 bg-neutral-800 rounded">
+					<h4 class="text-neutral-300 text-sm font-semibold mb-1">Summary</h4>
+					<p class="text-neutral-400 text-sm">{analysis.summary}</p>
 				</div>
 			{/if}
 		</div>

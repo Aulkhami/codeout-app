@@ -228,11 +228,41 @@ int main() {
     return 0;
 }`,
 			is_active: true
+		},
+		{
+			id: 'sql',
+			name: 'sql',
+			display_name: 'SQL',
+			file_extension: '.sql',
+			monaco_language_id: 'sql',
+			piston_language: 'sqlite3',
+			piston_version: '3.36.0',
+			template_code: `-- Write your SQL query here
+-- Example: SELECT * FROM table_name WHERE condition;
+
+`,
+			is_active: true
 		}
 	];
 }
 
-export async function getTemplate(languageName: string): Promise<string> {
+export async function getTemplate(languageName: string, challengeId?: string): Promise<string> {
+	// If we have a challengeId, try to get challenge-specific template
+	if (challengeId) {
+		try {
+			const response = await fetch(`/api/templates?challengeId=${challengeId}&language=${languageName}`);
+			if (response.ok) {
+				const data = await response.json();
+				if (data.success && data.template) {
+					return data.template;
+				}
+			}
+		} catch (error) {
+			console.warn('Failed to fetch challenge-specific template:', error);
+		}
+	}
+
+	// Fallback to language default template
 	const languages = await fetchLanguages();
 	const language = languages.find(l => l.name === languageName || l.display_name === languageName);
 	return language?.template_code || 'function solution() {\n    // Your code here\n    return null;\n}';
