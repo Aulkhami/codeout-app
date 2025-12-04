@@ -28,18 +28,18 @@
 <div class="min-h-screen bg-neutral-950">
 	<HomeHero />
 	<PlatformStats stats={data.stats} />
-	<QuickStart challenges={data.quickStartChallenges} user={data.user} />
-		<SkillBadges />
-		<LiveLobbies lobbies={data.activeLobbies} />
+	<QuickStart />
+	<SkillBadges />
+	<LiveLobbies lobbies={data.activeLobbies} />
 
 	<!-- New: Real Monaco editor + live code playground -->
-	<div class="max-w-7xl mx-auto grid grid-cols-2 gap-6 my-8 px-4">
-		<div class="bg-neutral-900 rounded-lg border border-neutral-800 overflow-hidden">
-			<div class="p-4 border-b border-neutral-800">
+	<div class="mx-auto my-8 grid max-w-7xl grid-cols-2 gap-6 px-4">
+		<div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+			<div class="border-b border-neutral-800 p-4">
 				<h3 class="text-lg font-semibold text-white">Code Editor</h3>
 				<p class="text-sm text-neutral-400">Write and test your solution</p>
 			</div>
-			<CodeEditor 
+			<CodeEditor
 				initialCode={`/**
  * @param {number[]} nums
  * @param {number} target
@@ -68,7 +68,7 @@ console.log(twoSum([3,2,4], 6));     // Expected: [1,2]`}
 				challengeId="two-sum"
 			/>
 		</div>
-		<LiveCode 
+		<LiveCode
 			language="javascript"
 			challengeId="two-sum"
 			initial={`function twoSum(nums, target) {
@@ -83,11 +83,11 @@ console.log(twoSum([3,2,4], 6));     // Expected: [1,2]`}
     return [];
 }`}
 		/>
-	</div>		<HomeFeatures />
-		<HomeCTA />
+	</div>
+	<HomeFeatures />
+	<HomeCTA />
 	<QuickStart />
 	<SkillBadges />
-	<GlobalLeaderboard users={data.leaderboard} />
 	<HomeFeatures />
 	<HomeCTA />
 </div>
