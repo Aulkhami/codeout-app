@@ -113,7 +113,7 @@
 		testResults = null;
 		
 		try {
-			const response = await fetch('/api/code/run', {
+			const response = await fetch('/api/code/test', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -164,7 +164,7 @@
 		
 		try {
 			// First execute the code to get test results
-			const executeResponse = await fetch('/api/code/submit', {
+			const executeResponse = await fetch('/api/code/execute', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({

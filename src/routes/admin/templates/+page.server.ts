@@ -34,7 +34,7 @@ export const load = (async ({ locals }) => {
 		console.error('Templates fetch error:', templatesError);
 	}
 
-	// Fetch programming languages for template creation
+	// Fetch programming languages
 	const { data: languages, error: languagesError } = await locals.supabase
 		.from('programming_languages')
 		.select('*')
@@ -43,15 +43,6 @@ export const load = (async ({ locals }) => {
 
 	if (languagesError) {
 		console.error('Languages fetch error:', languagesError);
-	}
-
-	// Fetch template statistics from the new view
-	const { data: templateStats, error: statsError } = await locals.supabase
-		.from('admin_template_stats')
-		.select('*');
-
-	if (statsError) {
-		console.error('Template stats error:', statsError);
 	}
 
 	// Fetch template statistics
@@ -67,7 +58,6 @@ export const load = (async ({ locals }) => {
 	return {
 		templates: templates || [],
 		languages: languages || [],
-		templateStats: templateStats || [],
 		stats: {
 			total: totalTemplates || 0,
 			public: publicTemplates || 0,

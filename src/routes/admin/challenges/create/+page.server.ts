@@ -35,14 +35,12 @@ export const actions: Actions = {
 
 			const formData = await request.formData();
 			
-			// Parse complex field data
-			let testCases, hints, images;
+			// Parse test cases
+			let testCases;
 			try {
 				testCases = JSON.parse(formData.get('test_cases')?.toString() || '[]');
-				hints = JSON.parse(formData.get('hints')?.toString() || '[]');
-				images = JSON.parse(formData.get('images')?.toString() || '[]');
 			} catch {
-				return fail(400, { error: 'Invalid JSON data in form fields' });
+				return fail(400, { error: 'Invalid test cases format' });
 			}
 
 			// Prepare challenge data for the API
@@ -53,16 +51,10 @@ export const actions: Actions = {
 				category: formData.get('category')?.toString() || null,
 				time_limit: parseInt(formData.get('time_limit')?.toString() || '1000'),
 				memory_limit: parseInt(formData.get('memory_limit')?.toString() || '256'),
-				max_score: parseInt(formData.get('max_score')?.toString() || '100'),
 				tags: formData.get('tags')?.toString()?.split(',').map(tag => tag.trim()).filter(Boolean) || [],
 				starter_code: formData.get('starter_code')?.toString() || '',
-				solution_explanation: formData.get('solution_explanation')?.toString() || '',
-				input_example: formData.get('input_example')?.toString() || '',
-				output_example: formData.get('output_example')?.toString() || '',
-				video_url: formData.get('video_url')?.toString() || null,
+				solution_explanation: formData.get('solution_code')?.toString() || '', // Store solution as explanation
 				testcases: testCases,
-				hints: hints,
-				images: images,
 				is_global: true // Admin creates global challenges
 			};
 

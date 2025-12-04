@@ -5,12 +5,11 @@
 	import type * as Monaco from 'monaco-editor';
 
 	interface EditorProps {
-		value: string;
+		value?: string;
 		language?: string;
 		theme?: string;
 		height?: string;
 		readonly?: boolean;
-		challengeId?: string;
 		onchange?: (value: string) => void;
 		onready?: (editor: Monaco.editor.IStandaloneCodeEditor) => void;
 	}
@@ -21,7 +20,6 @@
 		theme = 'vs-code-dark',
 		height = '400px',
 		readonly = false,
-		challengeId,
 		onchange,
 		onready
 	}: EditorProps = $props();
@@ -61,12 +59,7 @@
 			await new Promise(resolve => setTimeout(resolve, 100));
 
 			const monacoLang = await getMonacoLanguage(language);
-			// Use initialCode if provided, otherwise load template
-			let initialValue = internalValue || value;
-			if (!initialValue || !initialValue.trim()) {
-				initialValue = await getTemplate(language, challengeId);
-				console.log('Editor: Loading initial template for', language);
-			}
+			const initialValue = internalValue || value || await getTemplate(language);
 			
 			const editorOptions = getEditorOptions({ 
 				minimap: { enabled: false },
@@ -104,11 +97,8 @@
 	// Simple language change effect
 	$effect(() => {
 		if (editor && monaco && mounted && language) {
-			console.log('Editor: Language effect triggered for:', language);
-			// Use setTimeout to avoid race conditions
-			setTimeout(() => {
-				updateLanguageAndTemplate();
-			}, 50);
+			console.log('Editor: Language changed to:', language);
+			updateLanguageAndTemplate();
 		}
 	});
 
@@ -123,8 +113,19 @@
 				console.log('Editor: Updating Monaco language to:', monacoLang);
 				monaco.editor.setModelLanguage(model, monacoLang);
 			}
+			
+			// Load and set template
+			const template = await getTemplate(language);
+			if (template && template.trim()) {
+				console.log('Editor: Setting template for:', language);
+				editor.setValue(template);
+				internalValue = template;
+				value = template;
+				dispatch('change', { value: template });
+				onchange?.(template);
+			}
 		} catch (error) {
-			console.error('Editor: Failed to update language:', error);
+			console.error('Editor: Failed to update language/template:', error);
 		}
 	}
 
@@ -151,7 +152,7 @@
 	export async function loadTemplate() { 
 		console.log('loadTemplate called for language:', language);
 		try {
-			const template = await getTemplate(language, challengeId);
+			const template = await getTemplate(language);
 			console.log('Template fetched for', language, ':', template?.substring(0, 100) + '...');
 			if (template && template.trim()) {
 				setValue(template);
@@ -163,17 +164,6 @@
 			console.error('Error in loadTemplate:', error);
 		}
 	}
-
-	export async function updateLanguage(newLanguage: string) {
-		console.log('Editor: updateLanguage called with:', newLanguage, 'current:', language);
-		if (language !== newLanguage) {
-			language = newLanguage;
-			// Force immediate update of Monaco language
-			await updateLanguageAndTemplate();
-			console.log('Editor: Language updated to:', newLanguage);
-		}
-	}
-
 	export function focus() { editor?.focus(); }
 	export function layout() { editor?.layout(); }
 

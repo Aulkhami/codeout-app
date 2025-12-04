@@ -111,11 +111,10 @@
 {#if isOpen}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
 		<!-- Backdrop -->
-		<button
-			class="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-pointer"
+		<div 
+			class="absolute inset-0 bg-black/50 backdrop-blur-sm"
 			onclick={onClose}
-			aria-label="Close modal"
-		></button>
+		></div>
 
 		<!-- Modal -->
 		<div class="relative w-full max-w-4xl max-h-[90vh] overflow-hidden bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl">
@@ -269,7 +268,6 @@
 	.line-clamp-2 {
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
-		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}

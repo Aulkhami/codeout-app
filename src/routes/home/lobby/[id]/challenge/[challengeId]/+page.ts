@@ -1,6 +1,4 @@
-import type { Load } from '@sveltejs/kit';
-
-export const load: Load = async ({ params, parent }: { params: Record<string, string>; parent: () => Promise<unknown> }) => {
+export async function load({ params, parent }) {
 	const data = await parent();
 	
 	return {

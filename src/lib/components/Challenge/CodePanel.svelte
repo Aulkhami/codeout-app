@@ -5,16 +5,9 @@
 	interface CodePanelProps {
 		onsubmit?: (event: CustomEvent<{ code: string; language: string }>) => void;
 		onrun?: (event: CustomEvent<{ code: string; language: string }>) => void;
-		isLoading?: boolean;
-		hasChallenge?: boolean;
 	}
 
-	let { 
-		onsubmit, 
-		onrun,
-		isLoading = false,
-		hasChallenge = true
-	}: CodePanelProps = $props();
+	let { onsubmit, onrun }: CodePanelProps = $props();
 
 	let editor: Editor;
 	let code = $state('');
@@ -74,32 +67,28 @@
 		<div class="flex items-center gap-3">
 			<button 
 				onclick={runCode}
-				disabled={isRunning || isLoading || !hasChallenge}
+				disabled={isRunning}
 				class="px-4 py-2 text-sm bg-neutral-700 text-white rounded-md hover:bg-neutral-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
 			>
 				{#if isRunning}
 					<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-				{:else if isLoading}
-					<div class="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin"></div>
 				{:else}
 					<Play size={16} />
 				{/if}
-				{isLoading ? 'Loading...' : 'Run Code'}
+				Run Code
 			</button>
 			
 			<button 
 				onclick={submitCode}
-				disabled={isSubmitting || isLoading || !hasChallenge}
+				disabled={isSubmitting}
 				class="px-4 py-2 text-sm bg-neutral-800 text-white rounded-md hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
 			>
 				{#if isSubmitting}
 					<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-				{:else if isLoading}
-					<div class="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin"></div>
 				{:else}
 					<Send size={16} />
 				{/if}
-				{isLoading ? 'Loading...' : 'Submit Code'}
+				Submit Code
 			</button>
 		</div>
 	</div>

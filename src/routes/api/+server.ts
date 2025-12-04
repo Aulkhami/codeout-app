@@ -24,26 +24,16 @@ export const GET: RequestHandler = async () => {
 				}
 			},
 			code: {
-				'POST /api/code/run': {
-					description: 'Execute code for testing (no database save)',
+				'POST /api/code/execute': {
+					description: 'Execute code using Piston API',
 					auth: 'required',
 					body: {
 						language: 'string',
+						version: 'string (optional)',
 						code: 'string',
-						challengeId: 'string'
+						input: 'string (optional)'
 					},
-					response: 'Test execution results'
-				},
-				'POST /api/code/submit': {
-					description: 'Execute code and save submission to database',
-					auth: 'required',
-					body: {
-						language: 'string',
-						code: 'string',
-						challengeId: 'string',
-						lobbyId: 'string (optional for multiplayer)'
-					},
-					response: 'Test execution results + submission record'
+					response: 'Execution result with output'
 				},
 				'GET /api/code/languages': {
 					description: 'Get available programming languages',

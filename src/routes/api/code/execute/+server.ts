@@ -2,38 +2,6 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { pistonService } from '$lib/services/pistonService';
 
-// Helper function to get or create single player session
-async function getOrCreateSinglePlayerSession(supabase: unknown, userId: string) {
-	// Check if there's an existing in-progress session for this user
-	const { data: existingSession } = await supabase
-		.from('single_player_sessions')
-		.select('id')
-		.eq('user_id', userId)
-		.eq('status', 'in_progress')
-		.single();
-
-	if (existingSession) {
-		return existingSession.id;
-	}
-
-	// Create new session
-	const { data: newSession, error } = await supabase
-		.from('single_player_sessions')
-		.insert({
-			user_id: userId,
-			status: 'in_progress'
-		})
-		.select('id')
-		.single();
-
-	if (error) {
-		console.error('Failed to create single player session:', error);
-		return null;
-	}
-
-	return newSession.id;
-}
-
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const { session } = await locals.safeGetSession();
@@ -58,61 +26,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ error: 'Challenge not found' }, { status: 404 });
 		}
 
-		// Parse test cases - they can be stored as JSON string or already parsed
-		let testCases = challenge.testcases;
-		
-		// If testcases is a string, parse it
-		if (typeof testCases === 'string') {
-			try {
-				testCases = JSON.parse(testCases);
-			} catch (parseError) {
-				console.error('Failed to parse testcases:', parseError);
-				return json({ error: 'Invalid test cases format' }, { status: 400 });
-			}
-		}
-
-		// Ensure testCases is an array
-		if (!Array.isArray(testCases)) {
-			// If it's a single test case object, wrap it in an array
-			if (testCases && typeof testCases === 'object' && testCases.input && testCases.output !== undefined) {
-				testCases = [testCases];
-			} else {
-				console.error('Invalid testcases format:', testCases);
-				return json({ error: 'Test cases must be an array or valid test case object' }, { status: 400 });
-			}
-		}
-
-		// Validate and format test cases
-		const formattedTestCases = testCases.map((testCase: unknown, index: number) => {
-			if (!testCase || typeof testCase !== 'object') {
-				throw new Error(`Test case ${index + 1} is invalid`);
-			}
-			
-			const testCaseObj = testCase as Record<string, unknown>;
-			if (!('input' in testCaseObj) || !('output' in testCaseObj)) {
-				throw new Error(`Test case ${index + 1} must have 'input' and 'output' properties`);
-			}
-
-			return {
-				input: testCaseObj.input as Record<string, unknown>,
-				output: testCaseObj.output
-			};
-		});
+		const challengeData = challenge as { testcases: Array<{ input: Record<string, unknown>; output: unknown }> };
+		const testCases = challengeData.testcases;
 
 		// Execute code using Piston service
 		try {
-			const result = await pistonService.runTestCases(code, language, formattedTestCases);
+			const result = await pistonService.runTestCases(code, language, testCases);
 			
 			const allTestsPassed = result.test_cases_passed === result.total_test_cases;
 			
-			// For single player mode, get or create session ID
+			// For single player mode, create or get a session ID
 			let singlePlayerSessionId = null;
 			if (!lobbyId) {
-				singlePlayerSessionId = await getOrCreateSinglePlayerSession(
-					locals.supabase, 
-					session.user.id, 
-					challengeId
-				);
+				// Generate a session ID for single player mode
+				singlePlayerSessionId = `session_${session.user.id}_${Date.now()}`;
 			}
 			
 			// Save submission to database
@@ -131,13 +58,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				single_player_session_id: singlePlayerSessionId
 			};
 			
-			const { error: submissionError } = await locals.supabase
-				.from('submissions')
+			const { error: submissionError } = await (locals.supabase
+				.from('submissions') as unknown as { insert: (data: Record<string, unknown>) => Promise<{ error?: unknown }> })
 				.insert(submissionData);
 
 			if (submissionError) {
 				console.error('Failed to save submission:', submissionError);
-				// Don't fail the whole request if submission fails, just log it
 			}
 
 			// Check if this is the first solution in a lobby
@@ -173,14 +99,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		} catch (executionError) {
 			console.error('Code execution error:', executionError);
 			
-			// For single player mode, get or create session ID
+			// For single player mode, create or get a session ID
 			let singlePlayerSessionId = null;
 			if (!lobbyId) {
-				singlePlayerSessionId = await getOrCreateSinglePlayerSession(
-					locals.supabase, 
-					session.user.id, 
-					challengeId
-				);
+				// Generate a session ID for single player mode
+				singlePlayerSessionId = `session_${session.user.id}_${Date.now()}`;
 			}
 			
 			// Save failed submission
@@ -194,13 +117,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				execution_time: null,
 				memory_used: null,
 				test_cases_passed: 0,
-				total_test_cases: formattedTestCases.length,
+				total_test_cases: testCases.length,
 				error_message: executionError instanceof Error ? executionError.message : 'Code execution failed',
 				lobby_id: lobbyId || null,
 				single_player_session_id: singlePlayerSessionId
 			};
-			const { error: submissionError } = await locals.supabase
-				.from('submissions')
+			const { error: submissionError } = await (locals.supabase
+				.from('submissions') as unknown as { insert: (data: Record<string, unknown>) => Promise<{ error?: unknown }> })
 				.insert(failedSubmissionData);
 
 			if (submissionError) {

@@ -8,10 +8,6 @@
 	
 	let challengeId = $page.params.id;
 	let lobbyId = $page.url.searchParams.get('lobbyId');
-	
-	// Debug challengeId 
-	console.log('Challenge page - challengeId from params:', challengeId);
-	
 	let challenge: any = $state(null);
 	let lobby: any = $state(null);
 	let timeRemaining = $state(0);

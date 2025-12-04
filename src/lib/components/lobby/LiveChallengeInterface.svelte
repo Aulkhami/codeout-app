@@ -116,13 +116,15 @@
 		testResults = null;
 		
 		try {
-			const response = await fetch('/api/code/run', {
+			const response = await fetch('/api/code/execute', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					language: codeEditor.getLanguage(),
 					code,
-					challengeId: (currentChallenge as Challenge).id
+					challengeId: (currentChallenge as Challenge).id,
+					lobbyId,
+					testOnly: true
 				})
 			});
 
@@ -169,14 +171,15 @@
 		isSubmitting = true;
 		
 		try {
-			const response = await fetch('/api/code/submit', {
+			const response = await fetch('/api/code/execute', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					language: codeEditor.getLanguage(),
 					code,
 					challengeId: (currentChallenge as Challenge).id,
-					lobbyId
+					lobbyId,
+					testOnly: false
 				})
 			});
 
